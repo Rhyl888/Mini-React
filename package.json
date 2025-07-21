@@ -6,7 +6,7 @@
   "scripts": {
     "lint": "eslint --ext .ts,.jsx,.tsx --fix --quiet ./packages/**/*",
     "prepare": "husky install",
-    "build:dev": "rimraf dist && rollup --bundleConfigAsCjs -c scripts/rollup/react.config.js"
+    "build:dev": "rimraf dist && rollup --bundleConfigAsCjs -c scripts/rollup/dev.config.js"
   },
   "keywords": [],
   "lint-staged": {
@@ -16,6 +16,7 @@
   "license": "ISC",
   "devDependencies": {
     "@eslint/js": "^9.24.0",
+    "@rollup/plugin-alias": "^5.1.1",
     "@rollup/plugin-commonjs": "^28.0.6",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
