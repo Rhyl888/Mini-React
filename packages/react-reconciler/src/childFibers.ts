@@ -1,8 +1,8 @@
+import { REACT_ELEMENT_TYPE } from 'shared/ReactSymbols';
 import { ReactElementType } from 'shared/ReactTypes';
 import { createFiberFromElement, FiberNode } from './fiber';
-import { REACT_ELEMENT_TYPE } from 'shared/ReactSymbols';
-import { HostText } from './workTags';
 import { Placement } from './fiberFlags';
+import { HostText } from './workTags';
 
 function ChildReconciler(shouldTrackEffects: boolean) {
   function reconcileSingleElement(returnFiber: FiberNode, currentFiber: FiberNode | null, element: ReactElementType) {
@@ -34,6 +34,11 @@ function ChildReconciler(shouldTrackEffects: boolean) {
     console.log('newChild:', newChild, Array.isArray(newChild));
     // 判断当前fiber的类型
     if (typeof newChild === 'object' && newChild !== null) {
+      // 添加调试信息
+      console.log('newChild.$$typeof:', newChild.$$typeof);
+      console.log('REACT_ELEMENT_TYPE:', REACT_ELEMENT_TYPE);
+      console.log('是否相等:', newChild.$$typeof === REACT_ELEMENT_TYPE);
+
       switch (newChild.$$typeof) {
         case REACT_ELEMENT_TYPE:
           return placeSingleChild(reconcileSingleElement(returnFiber, currentFiber, newChild));
