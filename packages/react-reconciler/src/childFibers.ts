@@ -18,9 +18,20 @@ function ChildReconciler(shouldTrackEffects: boolean) {
     }
   }
 
+  function deleteRemainingChildren(returnFiber: FiberNode, currentFirstChild: FiberNode | null) {
+    if (!shouldTrackEffects) {
+      return 
+    }
+    let childToDelete = currentFirstChild
+    while (childToDelete !== null) {
+      deleteChild(returnFiber, childToDelete);
+      childToDelete = childToDelete.sibling
+    }
+  }
+
   function reconcileSingleElement(returnFiber: FiberNode, currentFiber: FiberNode | null, element: ReactElementType) {
     const key = element.key;
-    work: if (currentFiber !== null) {
+    while (currentFiber !== null) {
       // update
       if (currentFiber?.key === key) {
         // key
@@ -29,21 +40,25 @@ function ChildReconciler(shouldTrackEffects: boolean) {
           if (element.type === currentFiber.type) {
             const existing = cloneFiber(currentFiber, element.props);
             existing.return = returnFiber;
+            // 当前节点可复用，标记剩下的节点删除
+            deleteRemainingChildren(returnFiber,currentFiber.sibling)
             return existing;
           }
 
-          // type 不同，删除旧的fiber
-          deleteChild(returnFiber, currentFiber);
-          break work;
+          // key相同 type 不同，删除所有旧的fiber
+          deleteRemainingChildren(returnFiber,currentFiber)
+
+          break;
         } else {
           if (__DEV__) {
             console.warn('未实现的react类型', element);
           }
-          break work;
+          break;
         }
       } else {
-        // key 不同，删除旧的fiber
+        // key 不同，删除当前旧的fiber
         deleteChild(returnFiber, currentFiber);
+        currentFiber = currentFiber.sibling;
       }
     }
     // 根据element创建fiber
@@ -53,11 +68,16 @@ function ChildReconciler(shouldTrackEffects: boolean) {
   }
 
   function reconcileSingleTextNode(returnFiber: FiberNode, currentFiber: FiberNode | null, content: string | number) {
-    if (currentFiber !== null) {
-      // update
-      const exsiting = cloneFiber(currentFiber, { content });
-      exsiting.return = returnFiber;
-      return exsiting;
+    while (currentFiber !== null) {
+      if (currentFiber.tag === HostText) {
+        // update 类型没变，可以复用
+        const existing = cloneFiber(currentFiber, { content });
+        existing.return = returnFiber;
+        deleteRemainingChildren(returnFiber, currentFiber.sibling);
+        return existing;
+      }
+      deleteChild(returnFiber, currentFiber);
+      currentFiber = currentFiber.sibling;
     }
 
     const fiber = new FiberNode(HostText, { content }, null);
