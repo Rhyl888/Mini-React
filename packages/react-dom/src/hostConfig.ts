@@ -1,5 +1,5 @@
 import { FiberNode } from 'react-reconciler/src/fiber';
-import {  HostText } from 'react-reconciler/src/workTags';
+import { HostText } from 'react-reconciler/src/workTags';
 import { DOMElement, updateFiberProps } from './SyntheticEvent';
 import { Props } from 'shared/ReactTypes';
 
@@ -54,10 +54,13 @@ export function removeChild(child: Instance | TextInstance, container: Container
   container.removeChild(child);
 }
 
-export function insertChildToContainer(
-	child: Instance,
-	container: Container,
-	before: Instance
-) {
-	container.insertBefore(child, before);
+export function insertChildToContainer(child: Instance, container: Container, before: Instance) {
+  container.insertBefore(child, before);
 }
+
+export const scheduleMicroTask =
+  typeof queueMicrotask === 'function'
+    ? queueMicrotask
+    : typeof Promise === 'function'
+      ? (callback: (...args: any) => void) => Promise.resolve(null).then(callback)
+      : setTimeout;
