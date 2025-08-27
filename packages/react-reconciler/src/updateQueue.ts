@@ -9,6 +9,7 @@ export interface Update<State> {
 }
 
 export interface UpdateQueue<State> {
+  updateQueue: any;
   shared: {
     pending: Update<State> | null;
   };
@@ -22,6 +23,8 @@ export const createUpdate = <State>(action: Action<State>, lane: Lane): Update<S
     next: null
   };
 };
+
+
 
 export const createUpdateQueue = <Action>() => {
   return {

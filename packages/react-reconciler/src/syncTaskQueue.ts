@@ -10,7 +10,7 @@ export function scheduleSyncCallback(callback: (...args: any[]) => void) {
   }
 }
 
-export function flushSyncCallback() {
+export function flushSyncCallbacks() {
   if (!isFlushingSyncQueue && syncQueue)  {
     isFlushingSyncQueue = true
     try {
