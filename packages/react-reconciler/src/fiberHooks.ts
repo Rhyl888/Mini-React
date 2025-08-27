@@ -87,7 +87,7 @@ function mountEffect(create: EffectCallback | void, deps: EffectDeps | void) {
 function updateEffect(create: EffectCallback | void, deps: EffectDeps | void) {
   const hook = updateWorkInProgresHook();
   const nextDeps = deps === undefined ? null : deps;
-  let destroy: EffectCallback | void;
+  let destroy: EffectCallback | void = undefined;
   if (currentHook !== null) {
     const prevEffect = currentHook.memeizedState as Effect;
     destroy = prevEffect.destroy;
@@ -100,12 +100,13 @@ function updateEffect(create: EffectCallback | void, deps: EffectDeps | void) {
         return
       }
     }
+    // 浅比较 不相等情况
+    (currentlyRenderingFiber as FiberNode).flags |= PassiveEffect;
+    hook.memeizedState = pushEffect(Passive | HookHasEffect, create, destroy, nextDeps);
   }
-
-  // 浅比较 不相等情况
-  (currentlyRenderingFiber as FiberNode).flags |= PassiveEffect;
-  hook.memeizedState = pushEffect(Passive | HookHasEffect, create, undefined, nextDeps);
 }
+
+
 
 function areHookInputsEqual(nextDeps: EffectDeps, prevDeps: EffectDeps) {
   if (prevDeps === null || nextDeps === null) {
