@@ -1,22 +1,29 @@
-import ReactDOM from 'react-noop-renderer';
+import ReactDOM from 'react-dom';
+import React from 'react';
+import { useState } from 'react';
 
 function App() {
+	const [num, update] = useState(100)
 	return (
-		<>
-			<Child/>
-			<div>hello world</div>
-		</>
+		<ul onClick={() => update(50)}>
+			{new Array(num).fill(0).map((_, i) => <Child key={i}>{i}</Child>)}
+		</ul>
 	)
 }
 
-function Child() {
+function Child({children}: {children: React.ReactNode}) {
 
-	return 'Child';
+	const now = performance.now();
+	while (performance.now() - now < 4) {
+		// 模拟渲染耗时
+
+	}
+	return <li>{children}</li>
 }
 
-const root = ReactDOM.createRoot();
+const root = ReactDOM.createRoot(document.getElementById('root')!);
 
- root.render(<App /> as any);
+ root.render(<App />);
 
 declare global {
 	interface Window {

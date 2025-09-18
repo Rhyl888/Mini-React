@@ -2,7 +2,7 @@ import { Dispatch, Dispatcher } from 'react/src/currentDispatcher';
 import internals from 'shared/internals';
 import { Action } from 'shared/ReactTypes';
 import { FiberNode } from './fiber';
-import { createUpdate, createUpdateQueue, enqueueUpdate, processUpdateQueue, UpdateQueue } from './updateQueue';
+import { createUpdate, createUpdateQueue, enqueueUpdate, processUpdateQueue, Update, UpdateQueue } from './updateQueue';
 import { scheduleUpdateOnFiber } from './workLoop';
 import { Lane, NoLane, requestUpdateLane } from './fiberLanes';
 import { Flags, PassiveEffect } from './fiberFlags';
@@ -19,6 +19,8 @@ interface Hook {
   memeizedState: any;
   updateQueue: unknown;
   next: Hook | null;
+  baseState: any;
+  baseQueue: Update<any> | null;
 }
 
 export interface Effect {
@@ -94,10 +96,10 @@ function updateEffect(create: EffectCallback | void, deps: EffectDeps | void) {
 
     if (nextDeps !== null) {
       // 浅比较依赖
-      const prevDeps = prevEffect.deps
+      const prevDeps = prevEffect.deps;
       if (areHookInputsEqual(nextDeps, prevDeps)) {
         hook.memeizedState = pushEffect(Passive, create, destroy, nextDeps);
-        return
+        return;
       }
     }
     // 浅比较 不相等情况
@@ -105,8 +107,6 @@ function updateEffect(create: EffectCallback | void, deps: EffectDeps | void) {
     hook.memeizedState = pushEffect(Passive | HookHasEffect, create, destroy, nextDeps);
   }
 }
-
-
 
 function areHookInputsEqual(nextDeps: EffectDeps, prevDeps: EffectDeps) {
   if (prevDeps === null || nextDeps === null) {
@@ -171,8 +171,43 @@ function updateState<State>(): [State, Dispatch<State>] {
 
   // 计算新state的逻辑
   const queue = hook.updateQueue as UpdateQueue<State>;
+  const baseState = hook.baseState;
+
   const pending = queue.shared.pending;
-  queue.shared.pending = null;
+  const current = currentHook as Hook;
+  let baseQueue = current.baseQueue;
+
+  if (pending !== null) {
+    // pending baseQueue update保存在current中
+    if (baseQueue !== null) {
+      // baseQueue不为空，说明有上次的更新没处理完
+      // baseQueue b2 -> b0 -> b1 -> b2
+      // pending p2 -> p0 -> p1 -> p2
+
+      // b0
+      const baseFirst = baseQueue.next;
+      // p0
+      const pendingFirst = pending.next;
+      // b2 -> p0
+      baseQueue.next = pendingFirst;
+      // p2 -> b0
+      pending.next = baseFirst;
+      // p2 -> b0 -> b1 -> b2 -> p0 -> p1 -> p2
+    }
+
+    baseQueue = pending;
+    // 保存到 current 上
+    current.baseQueue = pending
+    queue.shared.pending = null;
+
+    if (baseQueue !== null) {
+      const { memoizedState, baseQueue: newBaseQueue, baseState: newBaseState } = processUpdateQueue(baseState, baseQueue, renderLane);
+      hook.memeizedState = memoizedState;
+      hook.baseState = newBaseState;
+      hook.baseQueue = newBaseQueue;
+    }
+  }
+
 
   if (pending !== null) {
     // 有更新
@@ -206,7 +241,9 @@ function updateWorkInProgresHook(): Hook {
   const newHook: Hook = {
     memeizedState: currentHook.memeizedState,
     updateQueue: currentHook.updateQueue,
-    next: null
+    next: null,
+    baseState: currentHook.baseState,
+    baseQueue: currentHook.baseQueue
   };
   if (workInProgressHook === null) {
     // mount时 第一个hook
@@ -256,7 +293,9 @@ function mountWorkInProgressHook(): Hook {
   const hook: Hook = {
     memeizedState: null,
     updateQueue: null,
-    next: null
+    next: null,
+    baseState: null,
+    baseQueue: null
   };
 
   if (workInProgressHook === null) {
