@@ -73,7 +73,7 @@ export function renderWithHooks(wip: FiberNode, lane: Lane) {
 const HookDispathcerOnMount: Dispatcher = {
   useState: mountState,
   useEffect: mountEffect,
-  useTransition: mountTransition,
+  useTransition: mountTransition
 };
 
 const HookDispathcerOnUpdate: Dispatcher = {
@@ -200,19 +200,20 @@ function updateState<State>(): [State, Dispatch<State>] {
 
     baseQueue = pending;
     // 保存到 current 上
-    current.baseQueue = pending
+    current.baseQueue = pending;
     queue.shared.pending = null;
-
-   
   }
 
-
-   if (baseQueue !== null) {
-      const { memoizedState, baseQueue: newBaseQueue, baseState: newBaseState } = processUpdateQueue(baseState, baseQueue, renderLane);
-      hook.memeizedState = memoizedState;
-      hook.baseState = newBaseState;
-      hook.baseQueue = newBaseQueue;
-    }
+  if (baseQueue !== null) {
+    const {
+      memoizedState,
+      baseQueue: newBaseQueue,
+      baseState: newBaseState
+    } = processUpdateQueue(baseState, baseQueue, renderLane);
+    hook.memeizedState = memoizedState;
+    hook.baseState = newBaseState;
+    hook.baseQueue = newBaseQueue;
+  }
 
   if (pending !== null) {
     // 有更新
@@ -266,23 +267,23 @@ function updateWorkInProgresHook(): Hook {
   return workInProgressHook;
 }
 
-function mountTransition():[boolean, (callback: ()=> void) => void]{
+function mountTransition(): [boolean, (callback: () => void) => void] {
   const [isPending, setPending] = mountState(false);
   const hook = mountWorkInProgressHook();
   const start = startTransition.bind(null, setPending);
   hook.memeizedState = start;
 
-  return [isPending, start]
+  return [isPending, start];
 }
 
-function updateTransition():[boolean, (callback: ()=> void) => void]{
+function updateTransition(): [boolean, (callback: () => void) => void] {
   const [isPending] = updateState();
   const hook = updateWorkInProgresHook();
-  const start = hook.memeizedState
-  return [isPending as boolean, start]
-
+  const start = hook.memeizedState;
+  return [isPending as boolean, start];
 }
-function startTransition(setPending: Dispatch<boolean>, callback: () => void){
+
+function startTransition(setPending: Dispatch<boolean>, callback: () => void) {
   setPending(true);
   const prevTransition = currentBatchConfig.transition;
   currentBatchConfig.transition = 1;
@@ -292,6 +293,7 @@ function startTransition(setPending: Dispatch<boolean>, callback: () => void){
 
   currentBatchConfig.transition = prevTransition;
 }
+
 function mountState<State>(initialState: (() => State) | State): [State, Dispatch<State>] {
   // 找到当前useState对应的hook
   const hook = mountWorkInProgressHook();
