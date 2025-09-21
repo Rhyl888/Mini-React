@@ -7,7 +7,7 @@
     "lint": "eslint --ext .ts,.jsx,.tsx --fix --quiet ./packages/**/*",
     "prepare": "husky install",
     "build:dev": "rimraf dist && rollup --bundleConfigAsCjs -c scripts/rollup/dev.config.js",
-    "demo": "vite serve demos/test-fc --config scripts/vite/vite.config.mjs --force"
+    "demo": "vite serve demos/transition --config scripts/vite/vite.config.mjs --force"
   },
   "keywords": [],
   "lint-staged": {
