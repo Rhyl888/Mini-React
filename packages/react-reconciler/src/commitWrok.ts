@@ -7,40 +7,65 @@ import {
   removeChild
 } from 'hostConfig';
 import { FiberNode, FiberRootNode, PendingPassiveEffects } from './fiber';
-import { ChildDeletion, Flags, MutationMask, NoFlags, PassiveEffect, PassiveMask, Placement, Update } from './fiberFlags';
-import { FunctionComponent, HostComponent, HostRoot, HostText } from './workTags';
+import {
+  ChildDeletion,
+  Flags,
+  LayoutMask,
+  MutationMask,
+  NoFlags,
+  PassiveEffect,
+  PassiveMask,
+  Placement,
+  Ref,
+  Update
+} from './fiberFlags';
+import {
+  FunctionComponent,
+  HostComponent,
+  HostRoot,
+  HostText
+} from './workTags';
 import { Effect, FCUpdateQueue } from './fiberHooks';
 import { HookHasEffect } from './hookEffectTags';
 
 let nextEffect: FiberNode | null = null;
 
-export const commitMutationEffects = (finishedWork: FiberNode, root: FiberRootNode) => {
-  nextEffect = finishedWork;
+const commitEffects = (
+  phrase: 'mutation' | 'layout',
+  mask: Flags,
+  callback: (fiber: FiberNode, root: FiberRootNode) => void
+) => {
+  return (finishedWork: FiberNode, root: FiberRootNode) => {
+    nextEffect = finishedWork;
 
-  while (nextEffect !== null) {
-    // 向下遍历
-    const child: FiberNode | null = nextEffect.child;
+    while (nextEffect !== null) {
+      // 向下遍历
+      const child: FiberNode | null = nextEffect.child;
 
-    if ((nextEffect.subtreeFlags & (MutationMask | PassiveMask)) !== NoFlags && child !== null) {
-      nextEffect = child;
-    } else {
-      // 向上遍历 DFS
-      up: while (nextEffect !== null) {
-        commitMutationEffectsOnFiber(nextEffect, root);
-        const sibling: FiberNode | null = nextEffect.sibling;
+      if ((nextEffect.subtreeFlags & mask) !== NoFlags && child !== null) {
+        nextEffect = child;
+      } else {
+        // 向上遍历 DFS
+        up: while (nextEffect !== null) {
+          callback(nextEffect, root);
+          const sibling: FiberNode | null = nextEffect.sibling;
 
-        if (sibling !== null) {
-          nextEffect = sibling;
-          break up;
+          if (sibling !== null) {
+            nextEffect = sibling;
+            break up;
+          }
+          nextEffect = nextEffect.return;
         }
-        nextEffect = nextEffect.return;
       }
     }
-  }
+  };
 };
 
-const commitMutationEffectsOnFiber = (finishedWork: FiberNode, root: FiberRootNode) => {
-  const flags = finishedWork.flags;
+const commitMutationEffectsOnFiber = (
+  finishedWork: FiberNode,
+  root: FiberRootNode
+) => {
+  const { flags, tag } = finishedWork;
 
   if ((flags & Placement) !== NoFlags) {
     commitPlacement(finishedWork);
@@ -61,29 +86,94 @@ const commitMutationEffectsOnFiber = (finishedWork: FiberNode, root: FiberRootNo
     finishedWork.flags &= ~ChildDeletion;
   }
   if ((flags & PassiveEffect) !== NoFlags) {
-    // 收集回调
+    // 收集因deps变化而需要执行的userEffect
     commitPassiveEffect(finishedWork, root, 'update');
     finishedWork.flags &= ~PassiveEffect;
   }
+  if ((flags & Ref) !== NoFlags && tag === HostComponent) {
+    safelyDetachRef(finishedWork);
+  }
 };
 
-function commitPassiveEffect(fiber: FiberNode, root: FiberRootNode, type: keyof PendingPassiveEffects) {
+function safelyDetachRef(fiber: FiberNode) {
+  const ref = fiber.ref;
+  if (ref !== null) {
+    if (typeof ref === 'function') {
+      ref(null);
+    } else {
+      ref.current = null;
+    }
+  }
+}
+
+const commitLayoutEffectsOnFiber = (
+  finishedWork: FiberNode,
+  _root: FiberRootNode
+) => {
+  const { flags, tag } = finishedWork;
+
+  if ((flags & Ref) !== NoFlags && tag === HostComponent) {
+    // 绑定新的ref
+    saftlyAttachRef(finishedWork);
+    finishedWork.flags &= ~Ref;
+  }
+};
+
+function saftlyAttachRef(fiber: FiberNode) {
+  const ref = fiber.ref;
+  if (ref !== null) {
+    const instance = fiber.stateNode;
+    if (typeof ref === 'function') {
+      ref(instance);
+    } else {
+      ref.current = instance;
+    }
+  }
+}
+
+export const commitMutationEffects = commitEffects(
+  'mutation',
+  MutationMask | PassiveMask,
+  commitMutationEffectsOnFiber
+);
+
+export const commitLayoutEffects = commitEffects(
+  'layout',
+  LayoutMask,
+  commitLayoutEffectsOnFiber
+);
+
+function commitPassiveEffect(
+  fiber: FiberNode,
+  root: FiberRootNode,
+  type: keyof PendingPassiveEffects
+) {
   // update unmount
-  if (fiber.tag !== FunctionComponent || (type === 'update' && (fiber.flags & PassiveEffect) === NoFlags)) {
+  if (
+    fiber.tag !== FunctionComponent ||
+    (type === 'update' && (fiber.flags & PassiveEffect) === NoFlags)
+  ) {
     return;
   }
 
   const updateQueue = fiber.updateQueue as FCUpdateQueue<any>;
   if (updateQueue !== null) {
     if (updateQueue.lastEffect === null && __DEV__) {
-      console.error('当存在 passiveEffect 时，fiber 不应该不存在 lastEffect', fiber);
+      console.error(
+        '当存在 passiveEffect 时，fiber 不应该不存在 lastEffect',
+        fiber
+      );
     }
 
     root.pendingPassiveEffects[type].push(updateQueue.lastEffect as Effect);
   }
 }
 
-function  commitHookEffectList(flags: Flags, lastEffect: Effect, callback: (effect: Effect) => void) {
+function commitHookEffectList(
+  flags: Flags,
+  lastEffect: Effect,
+  callback: (effect: Effect) => void
+) {
   let effect = lastEffect.next as Effect;
 
   do {
@@ -96,7 +186,7 @@ function  commitHookEffectList(flags: Flags, lastEffect: Effect, callback: (effe
 }
 
 export function commitHookEffectListUnmount(flags: Flags, lastEffect: Effect) {
-  commitHookEffectList(flags, lastEffect, (effect) => {
+  commitHookEffectList(flags, lastEffect, effect => {
     const destroy = effect.destroy;
     if (typeof destroy === 'function') {
       destroy();
@@ -106,7 +196,7 @@ export function commitHookEffectListUnmount(flags: Flags, lastEffect: Effect) {
 }
 
 export function commitHookEffectListDestory(flags: Flags, lastEffect: Effect) {
-  commitHookEffectList(flags, lastEffect, (effect) => {
+  commitHookEffectList(flags, lastEffect, effect => {
     const destroy = effect.destroy;
     if (typeof destroy === 'function') {
       destroy();
@@ -115,7 +205,7 @@ export function commitHookEffectListDestory(flags: Flags, lastEffect: Effect) {
 }
 
 export function commitHookEffectListCreate(flags: Flags, lastEffect: Effect) {
-  commitHookEffectList(flags, lastEffect, (effect) => {
+  commitHookEffectList(flags, lastEffect, effect => {
     const create = effect.create;
     if (typeof create === 'function') {
       effect.destroy = create();
@@ -123,7 +213,10 @@ export function commitHookEffectListCreate(flags: Flags, lastEffect: Effect) {
   });
 }
 
-function recordHostChildrenToDelete(childrenToDelete: FiberNode[], unmountFiber: FiberNode) {
+function recordHostChildrenToDelete(
+  childrenToDelete: FiberNode[],
+  unmountFiber: FiberNode
+) {
   // 1. 找到第一个root host节点
   const lastOne = childrenToDelete[childrenToDelete.length - 1];
 
@@ -150,6 +243,7 @@ function commitDeletion(childToDelete: FiberNode, root: FiberRootNode) {
       case HostComponent:
         recordHostChildrenToDelete(rootChildrenToDelete, unmountFiber);
         //ToDo 解绑ref
+        safelyDetachRef(unmountFiber);
         return;
       case HostText:
         recordHostChildrenToDelete(rootChildrenToDelete, unmountFiber);
@@ -179,7 +273,10 @@ function commitDeletion(childToDelete: FiberNode, root: FiberRootNode) {
   childToDelete.child = null;
 }
 
-function commitNestedComponent(root: FiberNode, onCommitUnmount: (fiber: FiberNode) => void) {
+function commitNestedComponent(
+  root: FiberNode,
+  onCommitUnmount: (fiber: FiberNode) => void
+) {
   let node = root;
   while (true) {
     onCommitUnmount(node);
@@ -233,7 +330,11 @@ function getHostSibling(fiber: FiberNode) {
     while (node.sibling === null) {
       const parent = node.return;
 
-      if (parent === null || parent.tag === HostComponent || parent.tag === HostRoot) {
+      if (
+        parent === null ||
+        parent.tag === HostComponent ||
+        parent.tag === HostRoot
+      ) {
         return null;
       }
       node = parent;
@@ -279,7 +380,11 @@ function getHostParent(fiber: FiberNode): Container | null {
   return null;
 }
 
-function insertOrAppendPlacementNodeIntoContainer(finishedWork: FiberNode, hostParent: Container, before?: Instance) {
+function insertOrAppendPlacementNodeIntoContainer(
+  finishedWork: FiberNode,
+  hostParent: Container,
+  before?: Instance
+) {
   // fiber host
   if (finishedWork.tag === HostComponent || finishedWork.tag === HostText) {
     if (before) {

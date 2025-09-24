@@ -1,7 +1,11 @@
 import { FiberNode } from './fiber';
-import { NoFlags, Update } from './fiberFlags';
+import { NoFlags, Ref, Update } from './fiberFlags';
 import { appendInitialChild, Container, createInstance, createTextInstance, Instance } from 'hostConfig';
 import { Fragment, FunctionComponent, HostComponent, HostRoot, HostText } from './workTags';
+
+function markRef(fiber: FiberNode) {
+  fiber.flags |= Ref; 
+}
 
 function markUpdate(fiber: FiberNode) {
   fiber.flags |= Update;
@@ -21,6 +25,9 @@ export function completeWork(wip: FiberNode) {
         // className style
         markUpdate(wip)
         // updateFiberProps(wip.stateNode, newProps);
+        if (current.ref !== wip.ref) {
+          markRef(wip);
+        }
       } else {
         // 1.构建DOM
         // const instance = createInstance(wip.type, newProps);
@@ -28,6 +35,10 @@ export function completeWork(wip: FiberNode) {
         // 2. 将DOM插入到DOM树中
         appendAllChildren(instance, wip);
         wip.stateNode = instance;
+
+        if (wip.ref !== null) {
+          markRef(wip);
+        }
       }
       bubbleProperties(wip);
       return null;
